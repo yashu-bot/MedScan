@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"path": "../.next"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../prisma"
+		},
+		{
+			"path": "../node_modules"
+		},
+		{
+			"path": "../.genkit"
+		},
+		{
+			"path": "../docs"
+		},
+		{
+			"path": "../scripts"
+		}
+	]
+}

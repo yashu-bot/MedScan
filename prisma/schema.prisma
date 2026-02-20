@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Patient {
+  id                    String        @id @default(cuid())
+  name                  String
+  age                   Int
+  gender                String
+  bloodGroup            String
+  allergies             String
+  medicalConditions     String
+  recentSurgeries       String?
+  implantedDevices      String?
+  emergencyContactName  String
+  emergencyContactPhone String
+  faceImageUrl          String?
+
+  medicalHistory        MedicalNote[]
+
+  // Many-to-many: link this patient to multiple users
+  users                 UserPatient[]
+
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+}
+
+model MedicalNote {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  content   String
+  doctorName String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  patientId String
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  customerName String
+  phone       String
+  address     String
+  medication  String
+  quantity    Int
+  createdAt   DateTime @default(now())
+
+  items       OrderItem[]
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  employeeId String?
+
+  amountPaid  Float?   @default(0)
+  delivered   Boolean  @default(false)
+
+  // Link order to the user who placed it
+  customerUser   User?   @relation(fields: [customerUserId], references: [id])
+  customerUserId String?
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  name      String
+  quantity  Int
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+}
+
+model Doctor {
+  id         String  @id @default(cuid())
+  name       String
+  speciality String
+  hospital   Hospital? @relation(fields: [hospitalId], references: [id])
+  hospitalId String?
+  createdAt  DateTime @default(now())
+
+  conversations Conversation[]
+
+  availabilities Availability[]
+  appointments   Appointment[]
+}
+
+// Conversation between a patient (user) and any doctor matching a specialization
+model Conversation {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+  doctorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages  Message[]
+
+  @@index([doctorId])
+  @@index([userId, doctorId])
+}
+
+// Individual messages inside a conversation
+model Message {
+  id              String        @id @default(cuid())
+  conversation    Conversation  @relation(fields: [conversationId], references: [id])
+  conversationId  String
+  senderType      MessageSender
+  doctorName      String?
+  content         String
+  createdAt       DateTime      @default(now())
+
+  @@index([conversationId])
+}
+
+enum MessageSender {
+  PATIENT
+  DOCTOR
+}
+
+// Doctor daily availability (date + time window + capacity)
+model Availability {
+  id          String   @id @default(cuid())
+  doctor      Doctor   @relation(fields: [doctorId], references: [id])
+  doctorId    String
+  date        DateTime // day only (treat as 00:00 local)
+  startTime   String   // e.g. "09:00"
+  endTime     String   // e.g. "12:00"
+  capacity    Int      // total number of patients accepted that day
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@index([doctorId, date])
+}
+
+// Patient appointment booking against availability
+model Appointment {
+  id             String       @id @default(cuid())
+  doctor         Doctor       @relation(fields: [doctorId], references: [id])
+  doctorId       String
+  availability   Availability @relation(fields: [availabilityId], references: [id])
+  availabilityId String
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+  timeSlot       String       // optional sub-slot like "09:30"; can be same as start
+  createdAt      DateTime     @default(now())
+
+  tokenNumber    Int          @default(1)
+
+  @@index([userId])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  profile   PatientProfile?
+
+  // Many-to-many: link this user to multiple patients
+  patients  UserPatient[]
+
+  // One-to-many: orders placed by this user
+  orders    Order[]
+
+  // One-to-many: conversations started by this user
+  conversations Conversation[]
+
+  // One-to-many: appointments booked by this user
+  appointments Appointment[]
+}
+
+model Hospital {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  address   String
+  doctors   Doctor[]
+  createdAt DateTime @default(now())
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  name      String
+  username  String   @unique
+  password  String
+  location  String
+  createdAt DateTime @default(now())
+  
+  orders    Order[]
+}
+
+model PatientProfile {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @unique
+  name      String
+  age       Int
+  gender    String
+  bloodGroup String
+  allergies  String?
+  medicalConditions String?
+  recentSurgeries   String?
+  implantedDevices  String?
+  emergencyContactName  String
+  emergencyContactPhone String
+  faceImageUrl String? // base64 data URL or CDN URL for demo
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Explicit join table for User <-> Patient many-to-many
+model UserPatient {
+  user     User    @relation(fields: [userId], references: [id])
+  userId   String
+  patient  Patient @relation(fields: [patientId], references: [id])
+  patientId String
+
+  assignedAt DateTime @default(now())
+
+  @@id([userId, patientId])
+}
+
+
